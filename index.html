@@ -101,7 +101,7 @@ const haversine = (function () {
 })();
 
 // Globals for storing data to render
-let points, info, angles, distances;
+let points, info, angles, distances, positionsOfLandmarks;
 
 // Render three.js things!
 let camera, controls, scene, renderer, geometry;
@@ -109,6 +109,9 @@ let camera, controls, scene, renderer, geometry;
 // Store all 3d things that are rendered to the canvas at any given time so we can easily clear the
 // screen.
 let alreadyRendered = [];
+
+let mouse = new THREE.Vector2();
+let raycaster = new THREE.Raycaster();
 
 function geoUpdated({coords: {latitude, longitude}}) {
   console.log(latitude, longitude);
@@ -145,12 +148,12 @@ function geoUpdated({coords: {latitude, longitude}}) {
       // return {x: distances[ct] * Math.sin(deg), y: distances[ct] * Math.cos(deg)};
       return {x: distances[ct] * Math.cos(deg), y: distances[ct] * Math.sin(deg)};
     });
-  }).then(positionsOfLandmarks => {
-    console.log(positionsOfLandmarks);
+  }).then(pos => {
+    positionsOfLandmarks = pos;
+    // Remove loading indicator
     var loading = document.getElementById("loading");
     loading && loading.remove();
 
-    console.log(positionsOfLandmarks)
     renderLandmarks(positionsOfLandmarks);
     animate();
   });
@@ -324,11 +327,40 @@ function run() {
       `rotate(${-window.orientation || 0}deg)`;
     }, 200);
   }, false);
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize( window.innerWidth, window.innerHeight );
   }, false );
+
+  // Click to open landmark in a new tab
+  window.addEventListener('mousedown', event => {
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    // update the picking ray with the camera and mouse position
+    raycaster.setFromCamera( mouse, camera );
+
+    // calculate objects intersecting the picking ray
+    var intersects = raycaster.intersectObjects(scene.children);
+
+    // Generate index for landmark
+    const landmarkIndex = intersects.reduce((prev, i) => {
+      if (prev >= 0) {
+        return prev;
+      } else {
+        const pt = i.point;
+        return positionsOfLandmarks.findIndex(i => {
+          return i.x === pt.x && i.y === pt.z;
+        });
+      }
+    }, -1);
+
+    // Open landmark
+    const landmark = info[points[landmarkIndex].pageid];
+    window.open(landmark.fullurl);
+  }, false);
 
 
 
